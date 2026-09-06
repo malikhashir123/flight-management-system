@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroCore - Operations & Fleet Admin Portal</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Admin Login Overlay Gate (Protected by password: admin123) -->
+  <div id="admin-auth-overlay" class="modal-overlay active" style="background: rgba(11, 15, 25, 0.96);">
+    <div class="modal-box" style="max-width: 440px; text-align: center;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔒</div>
+      <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem;">Operations Admin Gate</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">This section is restricted to authorized operations controllers and supervisors.</p>
+
+      <form id="admin-login-form" onsubmit="handleAdminLogin(event)">
+        <div class="form-group" style="text-align: left; margin-bottom: 1.25rem;">
+          <label for="admin-pass-input">Admin Passcode</label>
+          <input type="password" id="admin-pass-input" class="form-input" placeholder="Enter password" required autofocus>
+        </div>
+        <div id="admin-auth-error" style="color: #f87171; font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+        <div style="display: flex; gap: 0.75rem;">
+          <a href="/" class="btn btn-secondary" style="flex: 1; text-decoration: none;">← User Portal</a>
+          <button type="submit" class="btn" style="flex: 1;">Unlock Portal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">⚡</div>
+      <div>
+        <div class="brand-title">AeroCore Operations Console</div>
+      </div>
+      <span class="brand-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">Admin Protected</span>
+    </div>
+
+    <nav class="nav-tabs">
+      <button class="nav-btn active" onclick="switchAdminTab('fleet-dispatch-tab')">Fleet & Inventory</button>
+      <button class="nav-btn" onclick="switchAdminTab('schedules-tab')">Schedules & Delays</button>
+      <button class="nav-btn" onclick="switchAdminTab('gate-tab')">Gate Seat Assignment</button>
+      <button class="nav-btn" onclick="switchAdminTab('rag-gate-tab')">AI Approval Queue</button>
+      <button class="nav-btn" onclick="switchAdminTab('audit-tab')">Audit Trail</button>
+    </nav>
+
+    <div class="user-status">
+      <span class="role-tag" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3);">SUPER_ADMIN (Authenticated)</span>
+      <a href="/" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; text-decoration: none;">Exit to Passenger View ↗</a>
+      <button class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="adminLogout()">Lock</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- =================================================================== -->
+    <!-- TAB 1: FLEET & INVENTORY (CREATE & RESIZE) -->
+    <!-- =================================================================== -->
+    <section id="fleet-dispatch-tab" class="tab-content active">
+      <div class="hero-banner">
+        <h1 class="hero-title">Commercial Flight Creation & Inventory Master</h1>
+        <p class="hero-subtitle">FastAPI is the exclusive write path for commercial flight inventory. Strict airframe capacity sum validation applies.</p>
+      </div>
+
+      <!-- Create Flight Card -->
+      <div class="card">
+        <h2 class="card-title">➕ Create Commercial Flight & Allocate Seat Classes (REQ-ADM-01 - 04)</h2>
+        <form id="create-flight-form" onsubmit="handleCreateFlight(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Flight Number (REQ-ADM-01)</label>
+              <input type="text" id="create-fn" class="form-input" value="BA105" required>
+            </div>
+            <div class="form-group">
+              <label>Origin IATA (3-letter)</label>
+              <input type="text" id="create-origin" class="form-input" value="LHR" maxlength="3" required>
+            </div>
+            <div class="form-group">
+              <label>Destination IATA (3-letter)</label>
+              <input type="text" id="create-dest" class="form-input" value="DXB" maxlength="3" required>
+            </div>
+            <div class="form-group">
+              <label>Declared Total Aircraft Capacity (REQ-ADM-03)</label>
+              <input type="number" id="create-capacity" class="form-input" value="100" min="1" required>
+            </div>
+            <div class="form-group">
+              <label>Departure Time (UTC)</label>
+              <input type="datetime-local" id="create-dept" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label>Arrival Time (UTC)</label>
+              <input type="datetime-local" id="create-arr" class="form-input" required>
+            </div>
+          </div>
+
+          <h3 style="margin: 1.5rem 0 0.5rem; font-size: 0.95rem; color: #93c5fd;">Cabin Class Capacity Allocation (Must Sum Exactly to Total Capacity)</h3>
+          <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="form-group">
+              <label>First Class Seats (REQ-ADM-02)</label>
+              <input type="number" id="class-first-seats" class="form-input" value="20" min="1" required>
+              <label style="margin-top: 0.25rem;">Base Fare ($)</label>
+              <input type="number" id="class-first-fare" class="form-input" value="1500" min="1" required>
+            </div>
+            <div class="form-group">
+              <label>Business Class Seats (REQ-ADM-02)</label>
+              <input type="number" id="class-biz-seats" class="form-input" value="30" min="1" required>
+              <label style="margin-top: 0.25rem;">Base Fare ($)</label>
+              <input type="number" id="class-biz-fare" class="form-input" value="750" min="1" required>
+            </div>
+            <div class="form-group">
+              <label>Economy Class Seats (REQ-ADM-02)</label>
+              <input type="number" id="class-eco-seats" class="form-input" value="50" min="1" required>
+              <label style="margin-top: 0.25rem;">Base Fare ($)</label>
+              <input type="number" id="class-eco-fare" class="form-input" value="250" min="1" required>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem;">
+            <button type="submit" class="btn">Create Flight & Initialize Inventory</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Class Capacity Resizing Guard (REQ-ADM-08) -->
+      <div class="card">
+        <h2 class="card-title">📐 Adjust Seat Class Capacity (Shrink Guard REQ-ADM-08)</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Cannot shrink a class below its already-booked count. Database enforces row-lock protection.</p>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Flight ID</label>
+            <input type="text" id="resize-flight-id" class="form-input" placeholder="Flight UUID" value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa">
+          </div>
+          <div class="form-group">
+            <label>Cabin Class</label>
+            <select id="resize-class-code" class="form-select">
+              <option value="FIRST">FIRST</option>
+              <option value="BUSINESS" selected>BUSINESS</option>
+              <option value="ECONOMY">ECONOMY</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>New Total Capacity</label>
+            <input type="number" id="resize-new-capacity" class="form-input" value="35" min="1">
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <button class="btn" onclick="handleAdjustCapacity()">Update Class Capacity</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 2: SCHEDULES & CANCELLATIONS -->
+    <!-- =================================================================== -->
+    <section id="schedules-tab" class="tab-content">
+      <div class="hero-banner">
+        <h1 class="hero-title">Schedule Modifications & Flight Cancellations</h1>
+        <p class="hero-subtitle">Cascading schedule changes automatically grant passenger compensation rights if shift &ge; 2 hours.</p>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">🕒 Schedule Modification & Cascading Involuntary Override (REQ-ADM-05, REQ-CHG-25)</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Flight ID</label>
+            <input type="text" id="schedule-flight-id" class="form-input" placeholder="Flight UUID" value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa">
+          </div>
+          <div class="form-group">
+            <label>New Departure Time</label>
+            <input type="datetime-local" id="schedule-new-dept" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>New Arrival Time</label>
+            <input type="datetime-local" id="schedule-new-arr" class="form-input">
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <button class="btn" onclick="handleScheduleUpdate()">Apply Schedule Shift & Cascade Involuntary Flags</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">🛑 Flight Cancellation (REQ-ADM-06, REQ-CHG-26, REQ-SCH-36)</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Flight ID to Cancel</label>
+            <input type="text" id="cancel-flight-id" class="form-input" placeholder="Flight UUID" value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa">
+          </div>
+          <div class="form-group">
+            <label>Cancellation Reason</label>
+            <input type="text" id="cancel-reason" class="form-input" value="Operational dispatch airframe maintenance">
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <button class="btn btn-danger" onclick="handleFlightCancellation()">Cancel Entire Commercial Flight</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 3: GATE AGENT SEAT ASSIGNMENT (REQ-WST-32) -->
+    <!-- =================================================================== -->
+    <section id="gate-tab" class="tab-content">
+      <div class="hero-banner">
+        <h1 class="hero-title">Gate Agent Seat Assignment</h1>
+        <p class="hero-subtitle">Row-locking ensures that a gate-agent action and an n8n background promotion run cannot assign the same freed seat twice (REQ-WST-32).</p>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">🎟️ Assign Freed Seat with Row Lock (SELECT FOR UPDATE)</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Flight ID</label>
+            <input type="text" id="gate-flight-id" class="form-input" value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa">
+          </div>
+          <div class="form-group">
+            <label>Class Code</label>
+            <select id="gate-class-code" class="form-select">
+              <option value="FIRST">FIRST</option>
+              <option value="BUSINESS" selected>BUSINESS</option>
+              <option value="ECONOMY">ECONOMY</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Target Seat ID / Seat Number</label>
+            <input type="text" id="gate-seat-id" class="form-input" placeholder="Seat UUID or Seat Number">
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <button class="btn" onclick="handleGateSeatAssign()">Assign Seat at Gate</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 4: SUPERVISOR GROUNDED RAG APPROVAL GATE -->
+    <!-- =================================================================== -->
+    <section id="rag-gate-tab" class="tab-content">
+      <div class="hero-banner">
+        <h1 class="hero-title">AI Grounded Policy Support: Human Supervisor Approval Gate</h1>
+        <p class="hero-subtitle">MANDATORY HUMAN SIGN-OFF (REQ-FRD-38, REQ-APP-43): AI-drafted policy responses are held in this queue and CANNOT be dispatched via Gmail until approved by an Operations Supervisor.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+          <h2 class="card-title" style="margin-bottom:0;">🛡️ Pending Drafts Queue</h2>
+          <button class="btn btn-secondary" onclick="loadSupportDrafts()">Refresh Review Queue</button>
+        </div>
+        <div id="support-drafts-container">
+          <p style="color: var(--text-dim);">Loading pending drafts...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 5: IMMUTABLE AUDIT TRAIL (REQ-ADM-11, REQ-APP-44) -->
+    <!-- =================================================================== -->
+    <section id="audit-tab" class="tab-content">
+      <div class="hero-banner">
+        <h1 class="hero-title">Regulatory & Administrative Audit Trail</h1>
+        <p class="hero-subtitle">Immutable append-only audit trail recording every flight creation, capacity change, schedule edit, and cancellation.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+          <h2 class="card-title" style="margin-bottom:0;">📋 Administrative Audit Logs</h2>
+          <button class="btn btn-secondary" onclick="loadAuditLogs()">Refresh Logs</button>
+        </div>
+        <div id="audit-logs-container" style="max-height: 450px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+          <p style="color: var(--text-dim);">Click 'Refresh Logs' to view recent actions.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+{
+  "name": "WF-05: Unresolved Refund Escalation after N Days",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT r.id, r.amount, r.currency, b.booking_reference, u.email FROM refunds r JOIN bookings b ON r.booking_id = b.id JOIN users u ON b.user_id = u.id WHERE r.status = 'PENDING' AND r.escalated_at IS NULL AND r.created_at <= NOW() - INTERVAL '3 days' FOR UPDATE OF r SKIP LOCKED;"
+      },
+      "name": "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres-credentials",
+          "name": "Supabase PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customer_email || $json.email || 'ops@airline.com' }}",
+        "subject": "HIGH PRIORITY: Stuck Refund Escalation (Pending > 3 Days)",
+        "emailType": "html",
+        "message": "={{ $json.email_body || 'Automated Airline Notification from n8n Engine' }}"
+      },
+      "name": "Gmail Node (Scheduled Delivery)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "airline-gmail-credentials",
+          "name": "Airline Gmail Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)": {
+      "main": [
+        [
+          {
+            "node": "Gmail Node (Scheduled Delivery)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "description": "REQ-CHG-27: Escalation notification if a refund stays unresolved after N days."
+  }
+}

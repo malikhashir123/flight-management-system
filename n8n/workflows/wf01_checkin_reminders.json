@@ -1,0 +1,95 @@
+{
+  "name": "WF-01: Timezone-Correct 24-Hour Check-in Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.id, b.booking_reference, u.email, u.full_name, f.flight_number, f.origin, f.destination, f.departure_time FROM bookings b JOIN flights f ON b.flight_id = f.id JOIN users u ON b.user_id = u.id WHERE b.status = 'CONFIRMED' AND b.checkin_reminder_sent = FALSE AND f.status = 'SCHEDULED' AND (f.departure_time AT TIME ZONE f.origin_tz) - INTERVAL '24 HOURS' <= (NOW() AT TIME ZONE f.origin_tz) FOR UPDATE OF b SKIP LOCKED;"
+      },
+      "name": "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres-credentials",
+          "name": "Supabase PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customer_email || $json.email || 'ops@airline.com' }}",
+        "subject": "Flight {{ $json.flight_number }}: Check-In Is Now Open (24 Hours Prior)",
+        "emailType": "html",
+        "message": "={{ $json.email_body || 'Automated Airline Notification from n8n Engine' }}"
+      },
+      "name": "Gmail Node (Scheduled Delivery)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "airline-gmail-credentials",
+          "name": "Airline Gmail Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)": {
+      "main": [
+        [
+          {
+            "node": "Gmail Node (Scheduled Delivery)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "description": "REQ-SCH-33: Timezone correct for origin/dest. REQ-SCH-36: Hard suppression of reminders for cancelled flights."
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "name": "WF-08: Batch Historical Fraud Pattern Review",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * 0"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT user_id, COUNT(id) as monthly_bookings, SUM(total_fare) as monthly_spend FROM bookings WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY user_id HAVING COUNT(id) > 10;"
+      },
+      "name": "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres-credentials",
+          "name": "Supabase PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customer_email || $json.email || 'ops@airline.com' }}",
+        "subject": "Weekly Historical Fraud Digest: Cluster Analysis",
+        "emailType": "html",
+        "message": "={{ $json.email_body || 'Automated Airline Notification from n8n Engine' }}"
+      },
+      "name": "Gmail Node (Scheduled Delivery)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "airline-gmail-credentials",
+          "name": "Airline Gmail Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase PostgreSQL Node (FOR UPDATE SKIP LOCKED)": {
+      "main": [
+        [
+          {
+            "node": "Gmail Node (Scheduled Delivery)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "description": "REQ-FRD-41: Batch review job scanning historical bookings for fraud patterns missed in real time."
+  }
+}
