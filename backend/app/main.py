@@ -54,7 +54,7 @@ async def favicon():
 
 
 # Mount static asset directories
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend")
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 css_dir = os.path.join(frontend_dir, "css")
 js_dir = os.path.join(frontend_dir, "js")
 
